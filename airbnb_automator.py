@@ -52,8 +52,7 @@ def run_preapproval_flow(target_url):
                 print("🎯 [MATCH] Clicking Pre-Approve...")
                 page.click(btn_selector)
                 
-                # --- NEW HAMMER LOGIC ---
-                # We blindly press Enter 4 times, 2 seconds apart, to catch the popup whenever it arrives.
+                # --- HAMMER LOGIC ---
                 print("🔨 [ACTION] Brute-force confirming (Pressing Enter 4x over 8s)...")
                 for i in range(4):
                     print(f"   👉 Pressing Enter ({i+1}/4)...")
@@ -68,11 +67,12 @@ def run_preapproval_flow(target_url):
 
             # --- VERIFICATION PHASE ---
             print("🧐 [4/4] Verifying final status...")
-            # We try to reload to see the updated status badge
+            # CHANGE: Instead of reload(), we force navigation back to the inquiry URL
+            print(f"🔄 [NAVIGATE] Returning to inquiry page: {target_url}")
             try:
-                page.reload(wait_until="networkidle", timeout=15000)
+                page.goto(target_url, wait_until="networkidle", timeout=15000)
             except Exception:
-                print("⚠️ Reload timed out, checking content anyway...")
+                print("⚠️ Navigation back timed out, checking content anyway...")
             
             content = page.content()
             
