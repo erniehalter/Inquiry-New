@@ -1,5 +1,3 @@
-# airbnb_automator.py
-
 import time
 import logging
 from playwright.sync_api import sync_playwright
@@ -54,20 +52,27 @@ def run_preapproval_flow(target_url):
                 print("🎯 [MATCH] Clicking Pre-Approve...")
                 page.click(btn_selector)
                 
-                # Handle the confirmation modal
-                print("⌛ [STATUS] Waiting for confirmation dialog...")
-                page.wait_for_selector("text='will have 24 hours to book'", state="visible", timeout=5000)
-                page.keyboard.press("Enter")
+                # --- NEW HAMMER LOGIC ---
+                # We blindly press Enter 4 times, 2 seconds apart, to catch the popup whenever it arrives.
+                print("🔨 [ACTION] Brute-force confirming (Pressing Enter 4x over 8s)...")
+                for i in range(4):
+                    print(f"   👉 Pressing Enter ({i+1}/4)...")
+                    page.keyboard.press("Enter")
+                    time.sleep(2)
                 
-                # Buffer for server processing
-                time.sleep(5)
-            except Exception:
+                # Buffer for server processing after the final press
+                time.sleep(2)
+            except Exception as e:
                 # If button is missing, it might already be done. Move to check.
-                print("ℹ️ 'Pre-Approve' button not visible. Moving to final verification...")
+                print(f"ℹ️ Error during interaction: {e}. Moving to final verification...")
 
             # --- VERIFICATION PHASE ---
             print("🧐 [4/4] Verifying final status...")
-            page.reload(wait_until="networkidle")
+            # We try to reload to see the updated status badge
+            try:
+                page.reload(wait_until="networkidle", timeout=15000)
+            except Exception:
+                print("⚠️ Reload timed out, checking content anyway...")
             
             content = page.content()
             
