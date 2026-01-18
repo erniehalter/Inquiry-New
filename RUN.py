@@ -1,50 +1,31 @@
-# RUN.py
-
-import os
 import subprocess
 import time
-import sys
+import os
 
-# --- Configuration ---
-PROJECT_DIR = "/Users/erniehalter/Desktop/PythonApps/WORKING/Inquiry-New"
-SSH_CMD = "autossh -M 0 -N -p 443 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -R0:localhost:5001 -L4300:localhost:4300 Sdxfy5hKNil@a.pinggy.io"
-
-def cleanup_ports():
-    """Kills processes on 5001 and 4300 to prevent 'Address already in use'."""
-    for port in [5001, 4300]:
-        try:
-            pid = subprocess.check_output(["lsof", "-t", f"-i:{port}"]).decode().strip()
-            if pid:
-                os.system(f"kill -9 {pid}")
-        except: pass
-    os.system("pkill -f autossh > /dev/null 2>&1")
-
-def run_applescript(script):
-    subprocess.run(["osascript", "-e", script])
-
-def main():
-    cleanup_ports()
-    print("🧹 Ports cleaned. Launching Inquiry-New tabs...")
-
-    # Define the commands for each tab
-    cmd_listener = f"cd {PROJECT_DIR} && source venv/bin/activate && python3 ownerrez_webhook_tester.py"
-    cmd_tunnel = f"cd {PROJECT_DIR} && {SSH_CMD}"
-    cmd_monitor = f"cd {PROJECT_DIR} && source venv/bin/activate && python3 pingy_tunnel_monitor.py"
-
-    # Tab 1: Webhook Listener
-    run_applescript(f'tell application "Terminal" to do script "{cmd_listener}" in front window')
+def run_tabs():
+    # The path to your project
+    project_path = "/Users/erniehalter/Desktop/PythonApps/WORKING/Inquiry-New"
     
-    # Tab 2: SSH Tunnel
-    run_applescript('tell application "System Events" to tell process "Terminal" to keystroke "t" using command down')
-    time.sleep(1)
-    run_applescript(f'tell application "Terminal" to do script "{cmd_tunnel}" in front window')
+    # The corrected Pinggy command with +force and +http to prevent the errors we saw
+    pinggy_cmd = f"cd {project_path} && autossh -M 0 -t -p 443 -o \"ServerAliveInterval 60\" -o \"ServerAliveCountMax 3\" -R 80:localhost:5001 -L 4300:localhost:4300 Sdxfy5hKNil+force+http@a.pinggy.io"
     
-    # Tab 3: Tunnel Monitor
-    run_applescript('tell application "System Events" to tell process "Terminal" to keystroke "t" using command down')
-    time.sleep(1)
-    run_applescript(f'tell application "Terminal" to do script "{cmd_monitor}" in front window')
+    # Command for the Webhook Tester
+    tester_cmd = f"cd {project_path} && source venv/bin/activate && python3 ownerrez_webhook_tester.py"
+    
+    # Command for the Monitor
+    monitor_cmd = f"cd {project_path} && source venv/bin/activate && python3 pingy_tunnel_monitor.py"
 
-    print("✅ All tabs opened successfully.")
+    commands = [pinggy_cmd, tester_cmd, monitor_cmd]
+
+    for cmd in commands:
+        # Opens a new terminal tab and runs the command
+        applescript = f'tell application "Terminal" to do script "{cmd}"'
+        subprocess.run(["osascript", "-e", applescript])
+        time.sleep(1)
+
+    print("✅ All tabs opened with corrected tunnel settings.")
 
 if __name__ == "__main__":
-    main()
+    # Kills any existing autossh processes to start fresh
+    subprocess.run(["pkill", "-f", "autossh"])
+    run_tabs()
