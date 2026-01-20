@@ -7,7 +7,7 @@ from datetime import datetime
 
 # --- Configuration ---
 EMAIL_SENDER_ADDRESS = "erniehalter@gmail.com"
-GMAIL_APP_PASSWORD = "pskhfsgvokmhdprx" 
+GMAIL_APP_PASSWORD = "tboikwrmxjojgdjr" 
 
 # OwnerRez Login Credentials
 OWNERREZ_EMAIL = "erniehalter+ownerrez@gmail.com"
