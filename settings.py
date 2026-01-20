@@ -4,14 +4,18 @@ import logging
 import os
 import io
 from datetime import datetime
+from dotenv import load_dotenv
 
-# --- Configuration ---
+# Load variables from .env file
+load_dotenv()
+
+# --- Configuration (Loaded from .env) ---
 EMAIL_SENDER_ADDRESS = "erniehalter@gmail.com"
-GMAIL_APP_PASSWORD = "tboikwrmxjojgdjr" 
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD") 
 
 # OwnerRez Login Credentials
 OWNERREZ_EMAIL = "erniehalter+ownerrez@gmail.com"
-OWNERREZ_PASSWORD = "Frofro42!"
+OWNERREZ_PASSWORD = os.getenv("OWNERREZ_PASSWORD")
 
 # Email search criteria
 SUBJECT_STARTS_WITH = "Inquiry from" 

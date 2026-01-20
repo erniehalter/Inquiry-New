@@ -3,3 +3,4 @@ token.json
 venv/
 __pycache__/
 *.png
+.env
