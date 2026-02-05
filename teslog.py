@@ -18,7 +18,7 @@ def test_login():
         page = browser.new_page()
         
         print(f"📡 Loading Login Page for {EMAIL}...")
-        page.goto("https://app.ownerrez.com/accounts/login")
+        page.goto("https://app.ownerrez.com")
         
         page.fill("input[name='Email']", EMAIL)
         page.fill("input[name='Password']", PASS)
