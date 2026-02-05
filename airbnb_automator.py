@@ -1,29 +1,16 @@
 import os
-import io
 import time
 import re
-from datetime import datetime
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-import base64
 
-# --- Configuration (Loaded from .env) ---
 load_dotenv()
-EMAIL_SENDER_ADDRESS = os.getenv("EMAIL_SENDER_ADDRESS")
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
-
-# OwnerRez Login Credentials
 OWNERREZ_EMAIL = os.getenv("OWNERREZ_EMAIL")
 OWNERREZ_PASSWORD = os.getenv("OWNERREZ_PASSWORD")
-
-# Email search criteria
-SUBJECT_STARTS_WITH = "Inquiry from"
-
-# Gmail API Scopes
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 def get_gmail_service():
@@ -40,160 +27,54 @@ def get_gmail_service():
             token.write(creds.to_json())
     return build('gmail', 'v1', credentials=creds)
 
-def get_latest_inquiry_link(service, target_inquiry_id=None):
-    query = f"from:{EMAIL_SENDER_ADDRESS} subject:\"{SUBJECT_STARTS_WITH}\""
-    results = service.users().messages().list(userId='me', q=query, maxResults=10).execute()
-    messages = results.get('messages', [])
-
-    if not messages:
-        return None
-
-    for msg in messages:
-        msg_data = service.users().messages().get(userId='me', id=msg['id']).execute()
-        payload = msg_data.get('payload', {})
-        parts = payload.get('parts', [])
-        body = ""
-
-        if not parts:
-            body = base64.urlsafe_b64decode(payload.get('body', {}).get('data', '')).decode('utf-8')
-        else:
-            for part in parts:
-                if part.get('mimeType') == 'text/plain':
-                    body = base64.urlsafe_b64decode(part.get('body', {}).get('data', '')).decode('utf-8')
-                    break
-        
-        links = re.findall(r'https://app\.ownerrez\.com/inquiries/\d+', body)
-        if links:
-            found_link = links[0]
-            if target_inquiry_id:
-                if str(target_inquiry_id) in found_link:
-                    return found_link
-            else:
-                return found_link
-    return None
-
 def get_ownerrez_2fa_code(service):
     query = "from:no-reply@ownerrez.com \"Your OwnerRez verification code is\""
     results = service.users().messages().list(userId='me', q=query, maxResults=1).execute()
     messages = results.get('messages', [])
-
-    if not messages:
-        return None
-
+    if not messages: return None
     msg = service.users().messages().get(userId='me', id=messages[0]['id']).execute()
-    snippet = msg.get('snippet', '')
-    match = re.search(r'\b\d{6}\b', snippet)
+    match = re.search(r'\b\d{6}\b', msg.get('snippet', ''))
     return match.group(0) if match else None
 
-def run_automation(target_inquiry_url=None, target_inquiry_id=None):
-    print(f"\n🚀 [START] Target Inquiry: {target_inquiry_url if target_inquiry_url else 'Latest'}")
-    
+def run_automation(target_inquiry_url=None):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
-        context = browser.new_context()
-        page = context.new_page()
-
-        try:
-            # 1. Load Page
-            print("📡 [1/4] Loading page...")
-            page.goto(target_inquiry_url, wait_until="domcontentloaded")
-
-            # 2. Handle Login/2FA
-            # Added explicit wait for the email field to ensure page is ready
-            try:
-                page.wait_for_selector("input[name='Email']", timeout=5000)
-                is_login = True
-            except:
-                is_login = False
-
-            if is_login:
-                print("🔑 [2/4] Login required. Injecting credentials...")
-                page.fill("input[name='Email']", OWNERREZ_EMAIL)
-                page.fill("input[name='Password']", OWNERREZ_PASSWORD)
-                page.click("button[type='submit']")
-                
-                # Check if 2FA is triggered
-                try:
-                    page.wait_for_selector("input[name='Code']", timeout=10000)
-                    print("⚡ [ACTION] Login sent. Polling Gmail for 2FA...")
-                    service = get_gmail_service()
-                    code = None
-                    for i in range(24):
-                        print(f"🔄 [2FA POLL] Attempt {i+1}/24 | Check in 5s...")
-                        time.sleep(5)
-                        code = get_ownerrez_2fa_code(service)
-                        if code:
-                            print(f"✅ [GMAIL] Found Code: {code}")
-                            break
-                    
-                    if code:
-                        print(f"🔢 [ACTION] Injecting code: {code}")
-                        page.fill("input[name='Code']", code)
-                        page.click("button[type='submit']")
-                        print("⏳ [WAIT] Waiting for load after 2FA...")
-                        page.wait_for_load_state("networkidle")
-                    else:
-                        print("❌ [ERROR] 2FA timeout.")
-                        return
-                except:
-                    print("ℹ️ No 2FA required or already passed.")
-
-            # 3. Handle Conflicts
-            if "Row Version Conflict" in page.content() or "Database Concurrency Error" in page.content():
-                print("💥 [CONFLICT] Stale data detected. Refreshing...")
-                page.reload()
-                page.wait_for_load_state("networkidle")
-
-            # 4. Pre-Approve Logic
-            print("🖱️ [3/4] Searching for Pre-Approve button...")
-            pre_approve_button = page.query_selector("a:has-text('Pre-Approve')")
+        page = browser.new_page()
+        
+        # 1. Open login and wait
+        page.goto("https://app.ownerrez.com/accounts/login")
+        time.sleep(5)
+        
+        # 2. Type credentials
+        print("⌨️ Entering credentials...")
+        page.keyboard.type(OWNERREZ_EMAIL)
+        page.keyboard.press("Tab")
+        page.keyboard.type(OWNERREZ_PASSWORD)
+        page.keyboard.press("Enter")
+        
+        # 3. Wait for 2FA page
+        time.sleep(5)
+        
+        # 4. Poll Gmail for code
+        print("🔄 Polling Gmail for 2FA...")
+        service = get_gmail_service()
+        code = None
+        for _ in range(24):
+            code = get_ownerrez_2fa_code(service)
+            if code: break
+            time.sleep(5)
             
-            if pre_approve_button:
-                print("✅ [FOUND] Clicking Pre-Approve...")
-                pre_approve_button.click()
-                page.wait_for_load_state("networkidle")
-                
-                if "Row Version Conflict" in page.content():
-                    print("💥 [CONFLICT] Database locked. Final Refresh...")
-                    page.reload()
-                    page.wait_for_load_state("networkidle")
-                    pre_approve_button = page.query_selector("a:has-text('Pre-Approve')")
-                    if pre_approve_button: pre_approve_button.click()
-
-                print("🔘 [ACTION] Confirming Pre-Approval...")
-                confirm_button = page.query_selector("button:has-text('Pre-Approve')")
-                if confirm_button:
-                    confirm_button.click()
-                    print("🎉 [SUCCESS] Inquiry Pre-Approved.")
-                else:
-                    print("⚠️ [WARN] Final confirmation button not found.")
-            else:
-                print("ℹ️ [SKIP] Pre-Approve button not available.")
-
-            # Keep browser open for 10 seconds to verify result visually
-            print("⏳ Verifying final state...")
-            time.sleep(10)
-
-        except Exception as e:
-            print(f"💥 [ATTEMPT FAILED] Error: {str(e)}")
-        finally:
-            print("🏁 Closing browser session.")
-            browser.close()
+        if code:
+            print(f"✅ Found code: {code}. Injecting...")
+            page.keyboard.type(code)
+            page.keyboard.press("Enter")
+        
+        # 5. Final wait and redirect
+        time.sleep(5)
+        page.goto("https://app.ownerrez.com/inbox")
+        print("🏁 Arrived at Inbox.")
+        time.sleep(10)
+        browser.close()
 
 if __name__ == "__main__":
-    import sys
-    inquiry_id = sys.argv[1] if len(sys.argv) > 1 else None
-    gmail_service = get_gmail_service()
-    inquiry_url = None
-    for i in range(10):
-        print(f"🔄 [LINK POLL] Attempt {i+1}...")
-        inquiry_url = get_latest_inquiry_link(gmail_service, inquiry_id)
-        if inquiry_url:
-            print(f"✅ [GMAIL] Link found: {inquiry_url}")
-            break
-        time.sleep(10)
-    
-    if inquiry_url:
-        run_automation(target_inquiry_url=inquiry_url, target_inquiry_id=inquiry_id)
-    else:
-        print("❌ [ERROR] Could not find inquiry link in Gmail.")
+    run_automation()
