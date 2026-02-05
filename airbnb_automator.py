@@ -41,8 +41,8 @@ def run_automation(target_inquiry_url=None):
         browser = p.chromium.launch(headless=False)
         page = browser.new_page()
         
-        # 1. Open login and wait
-        page.goto("https://app.ownerrez.com/accounts/login")
+        # 1. Open main site and wait
+        page.goto("https://app.ownerrez.com")
         time.sleep(5)
         
         # 2. Type credentials
@@ -69,7 +69,7 @@ def run_automation(target_inquiry_url=None):
             page.keyboard.type(code)
             page.keyboard.press("Enter")
         
-        # 5. Final wait and redirect
+        # 5. Final wait and redirect to Inbox
         time.sleep(5)
         page.goto("https://app.ownerrez.com/inbox")
         print("🏁 Arrived at Inbox.")
